@@ -20,7 +20,6 @@ struct PinnedSectionView: View {
 
             ForEach(Array(viewModel.pinnedItems.enumerated()), id: \.element.id) { index, item in
                 ClipItemView(item: item, isSelected: selectedIndex == index, globalIndex: index)
-                    .id("item-\(index)")
             }
 
             if !viewModel.regularItems.isEmpty {

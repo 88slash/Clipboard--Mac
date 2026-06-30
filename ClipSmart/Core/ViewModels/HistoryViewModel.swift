@@ -6,8 +6,6 @@ import Observation
 @Observable
 final class HistoryViewModel {
 
-    // MARK: - 筛选类型
-
     enum TypeFilter: String, CaseIterable, Identifiable {
         case all, text, image, files
         var id: String { rawValue }
@@ -39,29 +37,53 @@ final class HistoryViewModel {
         }
     }
 
-    var searchQuery: String = ""
-    var typeFilter: TypeFilter = .all
-    var timeFilter: TimeFilter = .all
-    var onRequestClose: (() -> Void)?
+    // 展示用的【存储属性】—— 直接 mutate 它们一定会触发 SwiftUI 刷新（不依赖跨对象的传递式观察）
+    private(set) var pinnedItems: [ClipboardItem] = []
+    private(set) var regularItems: [ClipboardItem] = []
+    private(set) var totalCount: Int = 0
 
-    private let historyStore: HistoryStore
-    private let clipboardMonitor: ClipboardMonitor
+    var searchQuery: String = "" { didSet { refresh() } }
+    var typeFilter: TypeFilter = .all { didSet { refresh() } }
+    var timeFilter: TimeFilter = .all { didSet { refresh() } }
+    @ObservationIgnored var onRequestClose: (() -> Void)?
+
+    @ObservationIgnored private let historyStore: HistoryStore
+    @ObservationIgnored private let clipboardMonitor: ClipboardMonitor
 
     init(historyStore: HistoryStore, clipboardMonitor: ClipboardMonitor) {
         self.historyStore = historyStore
         self.clipboardMonitor = clipboardMonitor
+        // 存储层任何变化（监听新增 / 删除 / 固定 / 清空）都回调，刷新展示列表
+        historyStore.onChange = { [weak self] in self?.refresh() }
+        refresh()
+    }
+}
+
+extension HistoryViewModel {
+
+    /// 重新计算展示列表（数据或筛选变化后调用）
+    func refresh() {
+        pinnedItems  = filtered(historyStore.pinnedItems)
+        regularItems = filtered(historyStore.regularItems)
+        totalCount   = historyStore.allItems.count
     }
 
-    var pinnedItems: [ClipboardItem]  { filtered(historyStore.pinnedItems) }
-    var regularItems: [ClipboardItem] { filtered(historyStore.regularItems) }
-    var isEmpty: Bool   { historyStore.allItems.isEmpty }
-    var hasSearchResults: Bool { !pinnedItems.isEmpty || !regularItems.isEmpty }
-    var totalCount: Int { historyStore.allItems.count }
+    /// 面板每次显示前调用：重置搜索/筛选 + 重新加载存储
+    func prepareForShow() {
+        searchQuery = ""
+        typeFilter = .all
+        timeFilter = .all
+        historyStore.reload()   // → onChange → refresh
+        refresh()
+    }
 
-    /// 当前是否处于「筛选/搜索」状态（用于区分"无结果"与"无历史"）
+    var isEmpty: Bool { totalCount == 0 }
+    var hasSearchResults: Bool { !pinnedItems.isEmpty || !regularItems.isEmpty }
     var isFiltering: Bool {
         !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty || typeFilter != .all || timeFilter != .all
     }
+
+    // MARK: - 用户操作
 
     func selectItem(_ item: ClipboardItem) {
         clipboardMonitor.pauseMonitoring()
@@ -76,24 +98,21 @@ final class HistoryViewModel {
     func togglePin(_ item: ClipboardItem)  { historyStore.togglePin(item) }
     func clearAll()                        { historyStore.clearAll() }
     func clearSearch()                     { searchQuery = "" }
+}
 
-    private func filtered(_ items: [ClipboardItem]) -> [ClipboardItem] {
+private extension HistoryViewModel {
+
+    func filtered(_ items: [ClipboardItem]) -> [ClipboardItem] {
         var result = items
-
-        // 1) 类型筛选
         switch typeFilter {
         case .all:   break
         case .text:  result = result.filter { $0.contentType == .plainText || $0.contentType == .richText }
         case .image: result = result.filter { $0.contentType == .image }
         case .files: result = result.filter { $0.contentType == .fileURLs }
         }
-
-        // 2) 时间筛选
         if let cutoff = timeFilter.cutoff {
             result = result.filter { $0.timestamp >= cutoff }
         }
-
-        // 3) 文本搜索
         let q = searchQuery.trimmingCharacters(in: .whitespaces)
         if !q.isEmpty {
             result = result.filter { item in
@@ -107,7 +126,7 @@ final class HistoryViewModel {
         return result
     }
 
-    private func writeToPasteboard(_ item: ClipboardItem) {
+    func writeToPasteboard(_ item: ClipboardItem) {
         let pb = NSPasteboard.general
         pb.clearContents()
         switch item.contentType {

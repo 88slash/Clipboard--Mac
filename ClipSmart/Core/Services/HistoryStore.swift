@@ -16,6 +16,9 @@ final class HistoryStore {
 
     private(set) var allItems: [ClipboardItem] = []
 
+    /// 数据变化回调（增/删/改/清空后触发），由 ViewModel 监听以刷新展示
+    @ObservationIgnored var onChange: (() -> Void)?
+
     init(modelContext: ModelContext, preferences: any HistoryStoreConfiguration) {
         self.modelContext = modelContext
         self.preferences = preferences
@@ -37,7 +40,7 @@ final class HistoryStore {
     func clearAll() {
         try? modelContext.delete(model: ClipboardItem.self)
         try? modelContext.save()
-        allItems = []
+        loadItems()   // 置空 allItems 并触发 onChange
     }
 
     func togglePin(_ item: ClipboardItem) { item.isPinned.toggle(); save() }
@@ -50,7 +53,11 @@ final class HistoryStore {
     private func loadItems() {
         let descriptor = FetchDescriptor<ClipboardItem>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         allItems = (try? modelContext.fetch(descriptor)) ?? []
+        onChange?()
     }
+
+    /// 公开的重新加载入口（面板显示前调用，确保内存数据最新）
+    func reload() { loadItems() }
 
     private func isDuplicate(_ n: ClipboardItem, of e: ClipboardItem) -> Bool {
         guard n.contentTypeRaw == e.contentTypeRaw else { return false }

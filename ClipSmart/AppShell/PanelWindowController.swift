@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class PanelWindowController: NSWindowController {
 
+    private let viewModel: HistoryViewModel
     private var isVisible = false
     private let panelWidth:  CGFloat = 680
     private let panelHeight: CGFloat = 440
@@ -12,6 +13,7 @@ final class PanelWindowController: NSWindowController {
     // MARK: - Init
 
     init(viewModel: HistoryViewModel) {
+        self.viewModel = viewModel
         let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 680, height: 440),
             styleMask: [.borderless, .nonactivatingPanel, .hudWindow, .utilityWindow],
@@ -28,22 +30,7 @@ final class PanelWindowController: NSWindowController {
 
         super.init(window: panel)
 
-        // 关键：让 NSHostingView 完全填满 panel，不受初始 frame 限制
-        let hosting = NSHostingView(
-            rootView: MainPanelView().environment(viewModel)
-        )
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        panel.contentView = hosting
-
-        // 自动布局：hosting 撑满整个 panel
-        if let cv = panel.contentView {
-            NSLayoutConstraint.activate([
-                hosting.topAnchor.constraint(equalTo: cv.topAnchor),
-                hosting.bottomAnchor.constraint(equalTo: cv.bottomAnchor),
-                hosting.leadingAnchor.constraint(equalTo: cv.leadingAnchor),
-                hosting.trailingAnchor.constraint(equalTo: cv.trailingAnchor),
-            ])
-        }
+        installContentView()
 
         viewModel.onRequestClose = { [weak self] in
             Task { @MainActor in self?.hidePanel() }
@@ -60,12 +47,28 @@ final class PanelWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    /// 用 NSHostingController 托管 SwiftUI 内容
+    /// 关键修复：NSHostingView 直接塞进自定义 NSPanel 的 contentView 时，不会接入 SwiftUI 的
+    /// 更新循环 —— @Observable 变化（删除/固定/新增）不会实时刷新到屏幕，只有重建视图才显示新数据。
+    /// NSHostingController 会正确驱动 SwiftUI 更新，因此删除等操作可即时反映。每次显示时重建，
+    /// 同时获得干净状态（搜索框聚焦、选中项归零）。
+    private func installContentView() {
+        guard let panel = window else { return }
+        let host = NSHostingController(rootView: MainPanelView().environment(viewModel))
+        host.view.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+        panel.contentViewController = host
+    }
+
     // MARK: - Public API
 
     func togglePanel() { isVisible ? hidePanel() : showPanel() }
 
     func showPanel() {
         guard let panel = window else { return }
+
+        // 重置搜索/筛选并从存储重新加载，再重建视图 —— 确保显示最新复制的内容
+        viewModel.prepareForShow()
+        installContentView()
 
         panel.setContentSize(NSSize(width: panelWidth, height: panelHeight))
         centerOnScreen()

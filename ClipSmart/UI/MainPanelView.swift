@@ -44,13 +44,14 @@ struct MainPanelView: View {
                         let offset = viewModel.pinnedItems.count
                         ForEach(Array(viewModel.regularItems.enumerated()), id: \.element.id) { i, item in
                             ClipItemView(item: item, isSelected: selectedIndex == (i + offset), globalIndex: i + offset)
-                                .id("item-\(i + offset)")
                         }
                     }
                     .padding(.vertical, 6)
                 }
                 .onChange(of: selectedIndex) { _, n in
-                    withAnimation(.easeInOut(duration: 0.15)) { proxy.scrollTo("item-\(n)", anchor: .center) }
+                    let all = viewModel.pinnedItems + viewModel.regularItems
+                    guard n >= 0, n < all.count else { return }
+                    withAnimation(.easeInOut(duration: 0.15)) { proxy.scrollTo(all[n].id, anchor: .center) }
                 }
             }
         }
