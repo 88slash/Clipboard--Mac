@@ -44,6 +44,28 @@ final class ClipboardItem {
         return NSImage(data: d)?.resized(to: NSSize(width: 44, height: 44))
     }
 
+    /// 完整分辨率图片（用于预览）
+    var fullImage: NSImage? {
+        guard contentType == .image, let d = imageData else { return nil }
+        return NSImage(data: d)
+    }
+
+    /// 图片像素尺寸（用于预览信息展示）
+    var imagePixelSize: CGSize? {
+        guard contentType == .image, let d = imageData,
+              let rep = NSBitmapImageRep(data: d) else { return nil }
+        return CGSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+    }
+
+    /// 图片数据大小（KB / MB 文本）
+    var imageByteSizeText: String? {
+        guard contentType == .image, let d = imageData else { return nil }
+        let bytes = Double(d.count)
+        if bytes < 1024 { return "\(Int(bytes)) B" }
+        if bytes < 1024 * 1024 { return String(format: "%.0f KB", bytes / 1024) }
+        return String(format: "%.1f MB", bytes / (1024 * 1024))
+    }
+
     var fileURLs: [URL] { fileURLStrings.compactMap { URL(string: $0) } }
 
     static func fromText(_ text: String, sourceApp: String? = nil) -> ClipboardItem {

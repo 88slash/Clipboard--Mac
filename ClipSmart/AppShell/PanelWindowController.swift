@@ -36,6 +36,11 @@ final class PanelWindowController: NSWindowController {
             Task { @MainActor in self?.hidePanel() }
         }
 
+        // 预览弹窗关闭后，重新把键盘焦点交还给面板（否则搜索框/方向键会失灵）
+        viewModel.onPreviewDismissed = { [weak self] in
+            self?.window?.makeKey()
+        }
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowDidResignKey),
@@ -77,12 +82,19 @@ final class PanelWindowController: NSWindowController {
         panel.makeKey()
         isVisible = true
 
-        // 注册本地键盘监听：ESC 关闭面板
+        // 注册本地键盘监听：ESC 关闭面板（若图片预览开着，则先关预览，不关面板）
         if keyMonitor == nil {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard let self else { return event }
                 if event.keyCode == 53 { // ESC
-                    self.hidePanel()
+                    if self.viewModel.isShowingDeleteConfirm {
+                        // 删除确认框开着时，交给系统自己处理 ESC（取消对话框），不拦截
+                        return event
+                    } else if self.viewModel.previewingItemID != nil {
+                        self.viewModel.previewingItemID = nil
+                    } else {
+                        self.hidePanel()
+                    }
                     return nil          // 消费事件，不传递给系统
                 }
                 return event
@@ -129,6 +141,11 @@ final class PanelWindowController: NSWindowController {
     }
 
     @objc private func windowDidResignKey(_ notification: Notification) {
+        // 图片预览弹窗（NSPopover）或删除确认框（confirmationDialog，本质是 sheet）
+        // 弹出时会自己抢占 key window 状态，导致主面板"失去焦点" ——
+        // 这不是用户想关闭面板，忽略这次失焦，避免面板被误关且确认框状态悬空。
+        guard viewModel.previewingItemID == nil,
+              !viewModel.isShowingDeleteConfirm else { return }
         hidePanel()
     }
 }

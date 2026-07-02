@@ -33,6 +33,20 @@ struct SearchBarView: View {
                 .padding(.vertical, 2)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
                 .opacity(viewModel.searchQuery.isEmpty ? 1 : 0)
+
+            Divider().frame(height: 14)
+
+            // 进入/退出多选模式
+            Button {
+                viewModel.toggleSelectingMode()
+            } label: {
+                Image(systemName: vm.isSelecting ? "checkmark.circle.fill" : "checklist")
+                    .font(.system(size: 14))
+                    .foregroundStyle(vm.isSelecting ? Color.accentColor : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.totalCount == 0)
+            .help(vm.isSelecting ? "退出多选" : "多选删除")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)

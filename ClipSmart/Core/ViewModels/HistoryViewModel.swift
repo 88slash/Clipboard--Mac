@@ -42,6 +42,62 @@ final class HistoryViewModel {
     private(set) var regularItems: [ClipboardItem] = []
     private(set) var totalCount: Int = 0
 
+    // MARK: - 批量选择（勾选删除）
+
+    /// 是否处于「多选」模式
+    var isSelecting: Bool = false {
+        didSet { if !isSelecting { selectedIDs.removeAll() } }
+    }
+    /// 当前勾选的记录 id 集合
+    var selectedIDs: Set<UUID> = []
+
+    /// 当前是否勾选了指定记录
+    func isChecked(_ item: ClipboardItem) -> Bool { selectedIDs.contains(item.id) }
+
+    /// 切换单条记录的勾选状态
+    func toggleChecked(_ item: ClipboardItem) {
+        if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
+        else { selectedIDs.insert(item.id) }
+    }
+
+    /// 全选当前可见记录（固定 + 普通，已按筛选/搜索过滤）
+    func selectAllVisible() {
+        selectedIDs = Set((pinnedItems + regularItems).map { $0.id })
+    }
+
+    /// 取消全选
+    func deselectAll() { selectedIDs.removeAll() }
+
+    /// 删除所有勾选的记录
+    func deleteSelected() {
+        let all = pinnedItems + regularItems
+        let toDelete = all.filter { selectedIDs.contains($0.id) }
+        historyStore.deleteItems(toDelete)
+        selectedIDs.removeAll()
+        isSelecting = false
+    }
+
+    /// 进入/退出多选模式
+    func toggleSelectingMode() { isSelecting.toggle() }
+
+    /// 删除确认框是否打开。提升到这里（而不是行内 @State），
+    /// 让 PanelWindowController（AppKit 层）能感知到 confirmationDialog 正在显示，
+    /// 从而不把它抢占的 key window 状态误判成"用户要关闭整个面板"。
+    var isShowingDeleteConfirm: Bool = false
+
+    /// 当前正在预览图片的记录 id（nil 表示没有预览弹窗打开）
+    /// 提升到这里而不是行内 @State，是为了让 PanelWindowController（AppKit 层）
+    /// 也能感知预览状态，从而正确区分「预览弹窗抢占焦点」和「用户真的要关闭面板」。
+    var previewingItemID: UUID? {
+        didSet {
+            // 预览从"开着"变成"关闭"时，通知面板重新拿回键盘焦点
+            if oldValue != nil && previewingItemID == nil {
+                onPreviewDismissed?()
+            }
+        }
+    }
+    @ObservationIgnored var onPreviewDismissed: (() -> Void)?
+
     var searchQuery: String = "" { didSet { refresh() } }
     var typeFilter: TypeFilter = .all { didSet { refresh() } }
     var timeFilter: TimeFilter = .all { didSet { refresh() } }
@@ -73,6 +129,9 @@ extension HistoryViewModel {
         searchQuery = ""
         typeFilter = .all
         timeFilter = .all
+        previewingItemID = nil
+        isSelecting = false
+        isShowingDeleteConfirm = false
         historyStore.reload()   // → onChange → refresh
         refresh()
     }

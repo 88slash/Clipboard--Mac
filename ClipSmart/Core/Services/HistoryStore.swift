@@ -37,6 +37,13 @@ final class HistoryStore {
 
     func deleteItem(_ item: ClipboardItem) { modelContext.delete(item); save() }
 
+    /// 批量删除（用于多选删除）
+    func deleteItems(_ items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        for item in items { modelContext.delete(item) }
+        save()
+    }
+
     func clearAll() {
         try? modelContext.delete(model: ClipboardItem.self)
         try? modelContext.save()

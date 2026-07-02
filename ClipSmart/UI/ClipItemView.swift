@@ -8,11 +8,20 @@ struct ClipItemView: View {
     let globalIndex: Int
     @State private var isHovered = false
 
+    /// 是否显示预览：与 viewModel.previewingItemID 双向同步，
+    /// 这样 AppKit 层（PanelWindowController）也能感知到预览开着，避免 ESC/失焦误关主面板
+    private var showPreview: Bool {
+        get { viewModel.previewingItemID == item.id }
+        nonmutating set { viewModel.previewingItemID = newValue ? item.id : nil }
+    }
+
     var body: some View {
         HStack(spacing: 10) {
+            if viewModel.isSelecting { checkbox }
             typeIcon
             contentPreview
             Spacer(minLength: 4)
+            previewButton
             trailingInfo
         }
         .padding(.horizontal, 14)
@@ -21,11 +30,37 @@ struct ClipItemView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal, 8)
         .contentShape(Rectangle())
-        .onTapGesture { viewModel.selectItem(item) }
+        .onTapGesture {
+            if viewModel.isSelecting { viewModel.toggleChecked(item) }
+            else { viewModel.selectItem(item) }
+        }
         .onHover { isHovered = $0 }
         .contextMenu { contextMenuItems }
         .animation(.easeInOut(duration: 0.1), value: isSelected)
         .animation(.easeInOut(duration: 0.08), value: isHovered)
+    }
+
+    /// 多选模式下显示的勾选框
+    private var checkbox: some View {
+        Image(systemName: viewModel.isChecked(item) ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 15))
+            .foregroundStyle(viewModel.isChecked(item) ? Color.accentColor : Color.secondary.opacity(0.5))
+            .frame(width: 18)
+    }
+
+    /// 图片行悬停时显示的预览按钮
+    @ViewBuilder
+    private var previewButton: some View {
+        if item.contentType == .image && (isHovered || showPreview) {
+            Button { showPreview = true } label: {
+                Image(systemName: "eye")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isSelected ? Color.white : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("预览图片")
+            .transition(.opacity)
+        }
     }
 
     private var typeIcon: some View {
@@ -41,6 +76,9 @@ struct ClipItemView: View {
                     .frame(width: 32, height: 32)
                     .background(iconBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
+        }
+        .popover(isPresented: Binding(get: { showPreview }, set: { showPreview = $0 }), arrowEdge: .trailing) {
+            ImagePreviewView(item: item) { showPreview = false }
         }
     }
 
@@ -74,6 +112,10 @@ struct ClipItemView: View {
 
     @ViewBuilder
     private var contextMenuItems: some View {
+        if item.contentType == .image {
+            Button { showPreview = true } label: { Label("预览图片", systemImage: "eye") }
+            Divider()
+        }
         Button { copyOnly(item) } label: { Label("复制到剪切板", systemImage: "doc.on.doc") }
         Divider()
         Button { viewModel.togglePin(item) } label: {

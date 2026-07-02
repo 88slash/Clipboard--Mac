@@ -14,6 +14,11 @@ struct MainPanelView: View {
             FilterBarView()
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
+            if viewModel.isSelecting {
+                BulkActionBarView()
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
             Divider().opacity(0.15)
             contentArea
         }
@@ -21,6 +26,7 @@ struct MainPanelView: View {
         .glassPanel()
         .onChange(of: viewModel.typeFilter) { _, _ in selectedIndex = 0 }
         .onChange(of: viewModel.timeFilter) { _, _ in selectedIndex = 0 }
+        .onChange(of: viewModel.isSelecting) { _, _ in selectedIndex = 0 }
         .onKeyPress(.escape)    { handleEscape();      return .handled }
         .onKeyPress(.upArrow)   { navigateUp();         return .handled }
         .onKeyPress(.downArrow) { navigateDown();       return .handled }
@@ -78,16 +84,20 @@ struct MainPanelView: View {
     private func confirmSelection() {
         let all = viewModel.pinnedItems + viewModel.regularItems
         guard selectedIndex < all.count else { return }
-        viewModel.selectItem(all[selectedIndex])
+        if viewModel.isSelecting { viewModel.toggleChecked(all[selectedIndex]) }
+        else { viewModel.selectItem(all[selectedIndex]) }
     }
     private func deleteSelected() {
+        // 多选模式下，Delete 键交给批量删除逻辑处理，避免和单条删除混淆
+        guard !viewModel.isSelecting else { return }
         let all = viewModel.pinnedItems + viewModel.regularItems
         guard selectedIndex < all.count else { return }
         viewModel.deleteItem(all[selectedIndex])
         selectedIndex = max(0, min(selectedIndex, totalCount - 2))
     }
     private func handleEscape() {
-        if !viewModel.searchQuery.isEmpty { viewModel.clearSearch(); selectedIndex = 0 }
+        if viewModel.isSelecting { viewModel.isSelecting = false }
+        else if !viewModel.searchQuery.isEmpty { viewModel.clearSearch(); selectedIndex = 0 }
         else { viewModel.onRequestClose?() }
     }
 }
