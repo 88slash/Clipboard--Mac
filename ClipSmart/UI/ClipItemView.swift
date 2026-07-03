@@ -26,7 +26,7 @@ struct ClipItemView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .background(rowBackground)
+        .background(itemBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal, 8)
         .contentShape(Rectangle())
@@ -127,10 +127,45 @@ struct ClipItemView: View {
         }
     }
 
-    private var rowBackground: some ShapeStyle {
-        if isSelected { return AnyShapeStyle(.tint) }
-        else if isHovered { return AnyShapeStyle(.quinary) }
-        else { return AnyShapeStyle(.clear) }
+    @ViewBuilder
+    private var itemBackground: some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.accentColor.opacity(0.85),
+                            Color.accentColor.opacity(0.7)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.25),
+                                    Color.white.opacity(0.05),
+                                    Color.clear
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        } else if isHovered {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
+                )
+        } else {
+            Color.clear
+        }
     }
 
     private var iconColor: Color {

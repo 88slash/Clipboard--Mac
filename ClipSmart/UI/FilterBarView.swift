@@ -53,10 +53,14 @@ private struct Chip: View {
                     Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
                 }
             }
-            .foregroundStyle(selected ? Color.white : Color.primary.opacity(0.75))
+            .foregroundStyle(selected ? Color.white : Color.primary.opacity(0.8))
             .padding(.horizontal, 11)
             .padding(.vertical, 5)
             .background(chipBackground)
+            .overlay(
+                Capsule()
+                    .stroke(selected ? Color.clear : Color.white.opacity(0.08), lineWidth: 0.8)
+            )
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -65,9 +69,9 @@ private struct Chip: View {
 
     @ViewBuilder private var chipBackground: some View {
         if selected {
-            Capsule().fill(.tint)
+            Capsule().fill(Color.accentColor.opacity(0.85))
         } else {
-            Capsule().fill(.quaternary)
+            Capsule().fill(Color.white.opacity(0.06))
         }
     }
 }

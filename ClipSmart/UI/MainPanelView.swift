@@ -37,9 +37,19 @@ struct MainPanelView: View {
     @ViewBuilder
     private var contentArea: some View {
         if viewModel.isEmpty {
-            EmptyStateView().padding(.vertical, 40)
+            VStack {
+                Spacer()
+                EmptyStateView()
+                Spacer()
+            }
+            .frame(maxHeight: .infinity)
         } else if !viewModel.hasSearchResults && viewModel.isFiltering {
-            noResultsView
+            VStack {
+                Spacer()
+                noResultsView
+                Spacer()
+            }
+            .frame(maxHeight: .infinity)
         } else {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -69,7 +79,7 @@ struct MainPanelView: View {
                 .font(.system(size: 28, weight: .light)).foregroundStyle(.secondary)
             Text(noResultsText).font(.system(size: 13)).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
     }
 
     private var noResultsText: String {
@@ -104,17 +114,68 @@ struct MainPanelView: View {
 
 private struct GlassPanelModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .glassEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .shadow(color: .black.opacity(0.2), radius: 40, x: 0, y: 16)
-        } else {
-            content
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .shadow(color: .black.opacity(0.25), radius: 40, x: 0, y: 16)
-        }
+        content
+            // Base background: macOS hardware-accelerated blur effect
+            .background(
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+            )
+            // Liquid dark color layering
+            .background(
+                Color.black.opacity(0.35)
+            )
+            // Mirror surface gloss highlight gradient
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.12),
+                        Color.white.opacity(0.02),
+                        Color.clear,
+                        Color.black.opacity(0.15)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            // Liquid glass highlight edge stroke
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.38),
+                                Color.white.opacity(0.08),
+                                Color.clear,
+                                Color.black.opacity(0.25),
+                                Color.white.opacity(0.12)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.2
+                    )
+            )
+            .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+    }
+}
+
+struct VisualEffectView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+    var state: NSVisualEffectView.State = .active
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
     }
 }
 
